@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+.vscode/
+.idea/
+
+# AI-agent tooling, not part of the deliverable
+.agents/
+.claude/
+skills-lock.json
