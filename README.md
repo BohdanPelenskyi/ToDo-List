@@ -177,7 +177,9 @@ Base path `/api`. All bodies are JSON. Errors always have the same shape:
 | GET    | `/api/auth/me`       | –                            | `200 { user }`               | `401` no or invalid session            |
 
 `user` is `{ id, email, name, createdAt }`; the password hash is never returned. Passwords must be
-8–72 characters with at least one letter and one digit. Register and login are rate limited
+at least 8 characters and at most 72 bytes in UTF-8, with at least one letter of any alphabet (Latin,
+Cyrillic, …) and one digit; a Cyrillic letter takes two bytes, so about 36 of them fit, which matches what bcrypt
+actually uses. Register and login are rate limited
 (20 requests per 15 minutes per IP by default → `429`).
 
 ### Tasks

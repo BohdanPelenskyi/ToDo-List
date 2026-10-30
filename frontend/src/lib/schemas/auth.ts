@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 // These rules mirror backend/src/modules/auth/auth.schemas.ts; the server stays the authority.
 const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 72;
+// bcrypt only uses the first 72 bytes. The limit counts bytes, not characters, because a Cyrillic
+// letter takes two bytes in UTF-8.
+const MAX_PASSWORD_BYTES = 72;
 const MAX_NAME_LENGTH = 100;
+
+const utf8Encoder = new TextEncoder();
 
 const emailSchema = z
   .string()
@@ -22,9 +26,13 @@ export const registerSchema = z.object({
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH, `Password must be at least ${String(MIN_PASSWORD_LENGTH)} characters`)
-    .max(MAX_PASSWORD_LENGTH, `Password must be at most ${String(MAX_PASSWORD_LENGTH)} characters`)
-    .regex(/[A-Za-z]/, 'Password must contain at least one letter')
-    .regex(/\d/, 'Password must contain at least one digit'),
+    .refine(
+      (password) => utf8Encoder.encode(password).length <= MAX_PASSWORD_BYTES,
+      `Password is too long (at most ${String(MAX_PASSWORD_BYTES)} bytes; Cyrillic letters take two)`,
+    )
+    // \p{L} is a letter of any alphabet (Latin, Cyrillic, ...), \p{Nd} a decimal digit.
+    .regex(/\p{L}/u, 'Password must contain at least one letter')
+    .regex(/\p{Nd}/u, 'Password must contain at least one digit'),
   // An untouched input submits '', which means "no name".
   name: z
     .string()

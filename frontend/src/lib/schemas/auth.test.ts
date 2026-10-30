@@ -40,3 +40,33 @@ describe('loginSchema', () => {
     expect(loginSchema.safeParse({ email: '', password: '' }).success).toBe(false);
   });
 });
+
+describe('registerSchema with other alphabets', () => {
+  const valid = { email: 'olena@example.com', name: '' };
+
+  it.each(['Пароль123', 'пароль1234', 'Пароль_1_Україна', 'Пароль١٢٣'])(
+    'accepts the password %s',
+    (password) => {
+      expect(registerSchema.safeParse({ ...valid, password }).success).toBe(true);
+    },
+  );
+
+  it('still requires a digit and a letter', () => {
+    expect(registerSchema.safeParse({ ...valid, password: 'ТількиЛітери' }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...valid, password: '12345678' }).success).toBe(false);
+  });
+
+  it('counts the length limit in bytes, because Cyrillic letters take two', () => {
+    const tooLong = 'я'.repeat(36) + '1'; // 73 bytes
+    const justFits = 'я'.repeat(35) + '1'; // 71 bytes
+
+    expect(registerSchema.safeParse({ ...valid, password: tooLong }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...valid, password: justFits }).success).toBe(true);
+  });
+
+  it('keeps a Ukrainian name', () => {
+    const result = registerSchema.parse({ ...valid, password: 'Пароль123', name: '  Олена ' });
+
+    expect(result.name).toBe('Олена');
+  });
+});

@@ -213,3 +213,57 @@ describe('POST /api/auth/logout', () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe('passwords and names in other alphabets', () => {
+  const ukrainian = { email: 'olena@example.com', password: 'Пароль123', name: 'Олена' };
+
+  it('accepts a password with Ukrainian letters and lets the user sign in with it', async () => {
+    const registered = await request(app).post('/api/auth/register').send(ukrainian);
+    const loggedIn = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ukrainian.email, password: ukrainian.password });
+
+    expect(registered.status).toBe(201);
+    expect(registered.body).toMatchObject({ user: { name: 'Олена' } });
+    expect(loggedIn.status).toBe(200);
+  });
+
+  it('does not accept a wrong password just because it looks similar in another alphabet', async () => {
+    await request(app).post('/api/auth/register').send(ukrainian);
+
+    // The Latin "a" and "r" below replace the Cyrillic "а" and "р".
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ukrainian.email, password: 'Пarоль123' });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('still requires a digit in a Ukrainian password', async () => {
+    const response = await request(app)
+      .post('/api/auth/register')
+      .send({ ...ukrainian, password: 'ТількиЛітери' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      error: {
+        details: { fieldErrors: { password: ['Password must contain at least one digit'] } },
+      },
+    });
+  });
+
+  it('counts the 72-byte bcrypt limit in bytes, so 36 Cyrillic letters plus a digit are too long', async () => {
+    const tooLong = 'я'.repeat(36) + '1'; // 73 bytes
+    const justFits = 'я'.repeat(35) + '1'; // 71 bytes
+
+    const rejected = await request(app)
+      .post('/api/auth/register')
+      .send({ ...ukrainian, password: tooLong });
+    const accepted = await request(app)
+      .post('/api/auth/register')
+      .send({ ...ukrainian, password: justFits });
+
+    expect(rejected.status).toBe(400);
+    expect(accepted.status).toBe(201);
+  });
+});

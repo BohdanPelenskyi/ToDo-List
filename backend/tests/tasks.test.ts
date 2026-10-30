@@ -399,3 +399,22 @@ describe('due date and time', () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe('text in other alphabets', () => {
+  it('stores and returns Ukrainian titles and descriptions unchanged', async () => {
+    const response = await alice.agent
+      .post('/api/tasks')
+      .send({
+        title: 'Купити молоко та хліб',
+        description: 'Не забути: «Ґанок», їжак, єнот, ґудзик',
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      title: 'Купити молоко та хліб',
+      description: 'Не забути: «Ґанок», їжак, єнот, ґудзик',
+    });
+    const loaded = await alice.agent.get(`/api/tasks/${(response.body as TaskResponse).id}`);
+    expect(loaded.body).toMatchObject({ title: 'Купити молоко та хліб' });
+  });
+});
