@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: todo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d todo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/todo_test
+      # Lint and typecheck import the config module, which validates these.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/todo_test
+      JWT_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint -w backend
+      - run: npm run typecheck -w backend
+      - run: npm run build -w backend
+      - run: npm run test:coverage -w backend
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint -w frontend
+      - run: npm run typecheck -w frontend
+      - run: npm test -w frontend
+      - run: npm run build -w frontend
+
+  docker-smoke:
+    name: Docker smoke test
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+    steps:
+      - uses: actions/checkout@v4
+      # --wait blocks until every service with a healthcheck reports healthy.
+      - run: docker compose up -d --build --wait --wait-timeout 240
+      - name: API and web respond
+        run: |
+          curl --fail --silent --retry 10 --retry-delay 3 --retry-connrefused http://localhost:4000/api/health
+          curl --fail --silent --retry 10 --retry-delay 3 --retry-connrefused -o /dev/null http://localhost:3000/login
+      - name: Register, sign in and create a task through the web proxy
+        run: |
+          curl --fail --silent -c jar.txt -X POST http://localhost:3000/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"ci@example.com","password":"Secret123"}'
+          curl --fail --silent -b jar.txt -X POST http://localhost:3000/api/tasks \
+            -H 'Content-Type: application/json' \
+            -d '{"title":"CI task"}'
+      - if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v
