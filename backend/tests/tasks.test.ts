@@ -402,12 +402,10 @@ describe('due date and time', () => {
 
 describe('text in other alphabets', () => {
   it('stores and returns Ukrainian titles and descriptions unchanged', async () => {
-    const response = await alice.agent
-      .post('/api/tasks')
-      .send({
-        title: 'Купити молоко та хліб',
-        description: 'Не забути: «Ґанок», їжак, єнот, ґудзик',
-      });
+    const response = await alice.agent.post('/api/tasks').send({
+      title: 'Купити молоко та хліб',
+      description: 'Не забути: «Ґанок», їжак, єнот, ґудзик',
+    });
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
